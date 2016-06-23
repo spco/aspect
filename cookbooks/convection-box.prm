@@ -1,5 +1,6 @@
 # A description of convection in a 2d box. See the manual for more information.
 
+set Timing output frequency = 50
 
 # At the top, we define the number of space dimensions we would like to
 # work in:
@@ -10,7 +11,7 @@ set Dimension                              = 2
 # also designate an output directory.
 set Use years in output instead of seconds = false
 set End time                               = 0.5
-set Output directory                       = output
+set Output directory                       = /Users/sam/git/aspect-devel/output/conv_box_1
 
 # Then there are variables that describe the tolerance of
 # the linear solver as well as how the pressure should
@@ -134,7 +135,7 @@ end
 # on. We here use a globally refined mesh without
 # adaptive mesh refinement.
 subsection Mesh refinement
-  set Initial global refinement                = 4
+  set Initial global refinement                = 6
   set Initial adaptive refinement              = 0
   set Time steps between mesh refinement       = 0
 end
@@ -155,6 +156,7 @@ subsection Postprocess
 
   subsection Visualization
     set Time between graphical output = 0.01
+    set List of output variables = velocity divergence, velocity div mag ratio
   end
 end
 

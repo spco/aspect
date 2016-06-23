@@ -55,16 +55,20 @@ namespace aspect
         Assert (computed_quantities[0].size() == 1,                   ExcInternalError());
         Assert (duh[0].size() == this->introspection().n_components,          ExcInternalError());
 
+          double max_div_u = 0.;
         for (unsigned int q=0; q<n_quadrature_points; ++q)
           {
             // sum up diagonal elements of gradient vector
             double div_u=0.;
             for (unsigned int d=0; d<dim; ++d)
               div_u += duh[q][d][d];
-
+              max_div_u = std::max(max_div_u,std::abs(div_u));
             // output div u
-            computed_quantities[q](0) = div_u;
+            //computed_quantities[q](0) = div_u;
           }
+          for (unsigned int q=0; q<n_quadrature_points; ++q)
+              computed_quantities[q](0) = max_div_u;
+
       }
     }
   }
