@@ -5332,7 +5332,7 @@ value between time steps 1 and 500 is only $1.1\cdot 10^{-6}$. In other words,
 these numbers show that the compositional field approach is almost exactly mass conservative.
 
 
-\paragraph{The passive case with discontinuous advection dicretizations.}
+\paragraph{The passive case with discontinuous advection discretizations.}
 At this stage, it is interesting to look at the effect of the choice of discretizations
 used for temperature and composition fields. By default, \aspect{} uses a $Q_2$ finite element space that is continuous across faces for both temperature and composition fields. To stabilize the advection-dominated temperature equation, we use the Entropy Viscosity scheme in the paper \cite{guer11}. This works by adding extra diffusion to certain areas. Alternatively, we can change the discretization to one that is inherently stable, for example the discontinuous finite element. 
 
