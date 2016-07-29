@@ -112,10 +112,16 @@ namespace aspect
     template <int dim>
     std_cxx11::shared_ptr<FiniteElement<dim> >
     new_FE_Q_or_DGQ(const bool discontinuous,
+                    const bool tensorial,
                     const unsigned int degree)
     {
       if (discontinuous)
-        return std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_DGQ<dim>(degree));
+      {
+          if (tensorial)
+              return std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_DGQ<dim>(degree));
+          else
+              return std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_DGP<dim>(degree));
+      }
       else
         return std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_Q<dim>(degree));
     }
@@ -150,6 +156,7 @@ namespace aspect
       VariableDeclaration<dim>(
         "temperature",
         internal::new_FE_Q_or_DGQ<dim>(parameters.use_discontinuous_temperature_discretization,
+                                       parameters.use_dgq_temperature,
                                        parameters.temperature_degree),
         1,
         1));
@@ -158,6 +165,7 @@ namespace aspect
       VariableDeclaration<dim>(
         "compositions",
         internal::new_FE_Q_or_DGQ<dim>(parameters.use_discontinuous_composition_discretization,
+                                       parameters.use_dgq_composition,
                                        parameters.composition_degree),
         parameters.n_compositional_fields,
         parameters.n_compositional_fields));
@@ -175,6 +183,8 @@ namespace aspect
     n_components (FEVariableCollection<dim>::n_components()),
     use_discontinuous_temperature_discretization (parameters.use_discontinuous_temperature_discretization),
     use_discontinuous_composition_discretization (parameters.use_discontinuous_composition_discretization),
+    use_dgq_temperature (parameters.use_dgq_temperature),
+    use_dgq_composition (parameters.use_dgq_composition),
     component_indices (internal::setup_component_indices<dim>(*this)),
     n_blocks(FEVariableCollection<dim>::n_blocks()),
     block_indices (internal::setup_blocks<dim>(*this)),

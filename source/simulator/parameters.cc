@@ -702,6 +702,18 @@ namespace aspect
                          "as opposed to continuous. This then requires the assembly of face terms "
                          "between cells, and weak imposition of boundary terms for the composition "
                          "field via the discontinuous Galerkin method.");
+        prm.declare_entry ("Use dgq temperature discretization", "true",
+                           Patterns::Bool (),
+                           "Whether to use a temperature discretization that is discontinuous "
+                           "as opposed to continuous. This then requires the assembly of face terms "
+                           "between cells, and weak imposition of boundary terms for the temperature "
+                           "field via the interior-penalty discontinuous Galerkin method.");
+        prm.declare_entry ("Use dgq composition discretization", "true",
+                           Patterns::Bool (),
+                           "Whether to use a composition discretization that is discontinuous "
+                           "as opposed to continuous. This then requires the assembly of face terms "
+                           "between cells, and weak imposition of boundary terms for the composition "
+                           "field via the discontinuous Galerkin method.");
 
       prm.enter_subsection ("Stabilization parameters");
       {
@@ -1134,6 +1146,10 @@ namespace aspect
         = prm.get_bool("Use discontinuous temperature discretization");
       use_discontinuous_composition_discretization
         = prm.get_bool("Use discontinuous composition discretization");
+      use_dgq_temperature
+        = prm.get_bool("Use dgq temperature discretization");
+      use_dgq_composition
+        = prm.get_bool("Use dgq composition discretization");
       prm.enter_subsection ("Stabilization parameters");
       {
         use_artificial_viscosity_smoothing  = prm.get_bool ("Use artificial viscosity smoothing");

@@ -106,6 +106,18 @@ namespace aspect
       const bool use_discontinuous_composition_discretization;
 
       /**
+       * A variable that holds whether the temperature field should use a
+       * dgq element.
+       */
+      const bool use_dgq_temperature;
+      
+      /**
+       * A variable that holds whether the composition field(s) should use a
+       * dgq element.
+       */
+      const bool use_dgq_composition;
+      
+      /**
        * A structure that enumerates the vector components of the finite
        * element that correspond to each of the variables in this problem.
        */
