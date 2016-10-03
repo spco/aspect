@@ -27,6 +27,117 @@
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_values.h>
 
+#include "aspect/mesh_refinement/coefficient_function.h"
+
+namespace dealii
+{
+  namespace EquationData
+  {
+    const double alpha = 1.;
+
+    template <int dim, typename Number>
+    class WeightingFunction : public CoefficientFunction<dim, Number>
+    {
+      public:
+        WeightingFunction () : CoefficientFunction<dim, Number>(1) {}
+
+        double value (const Point<dim>   &p,
+                      const Number &helmholtz,
+                      const unsigned int component = 0) const;
+        Tensor<1,dim,Number> gradient (const Point<dim>  &p,
+                                       const Number &helmholtz,
+                                       const Tensor<1,dim,Number> &helmholtz_gradient,
+                                       const unsigned int component = 0) const;
+    };
+
+    template <int dim, typename Number>
+    double
+    WeightingFunction<dim, Number>::value (const Point<dim>  &p,
+                                           const Number &helmholtz,
+                                           const unsigned int component) const
+    {
+      Assert (component == 0 ,
+              ExcIndexRange (component, 0, 1));
+      return std::exp(-alpha*helmholtz);
+    }
+
+    template <int dim, typename Number>
+    Tensor<1,dim,Number>
+    WeightingFunction<dim, Number>::gradient (const Point<dim>  &p,
+                                              const Number &helmholtz,
+                                              const Tensor<1,dim,Number> &helmholtz_gradient,
+                                              const unsigned int component) const
+    {
+      Assert (component == 0 ,
+              ExcIndexRange (component, 0, 1));
+      Tensor<1,dim,Number> output_tensor;
+      for (unsigned int c=0; c<dim; ++c)
+        output_tensor[c] = -alpha*helmholtz_gradient[c]*std::exp(-alpha*helmholtz);
+      return output_tensor;
+    }
+
+    template <int dim, typename Number>
+    class ReactionFunction : public CoefficientFunction<dim, Number>
+    {
+      public:
+        ReactionFunction () : CoefficientFunction<dim, Number>(1) {}
+
+        double value (const Point<dim>   &p,
+                      const Number &convection_divergence,
+                      const Number &diffusion,
+                      const Tensor<1,dim,Number> &helmholtz_gradient,
+                      const Tensor<1,dim,Number> &convection,
+                      const unsigned int component = 0) const;
+    };
+
+    template <int dim, typename Number>
+    double
+    ReactionFunction<dim, Number>::value (const Point<dim>   &p,
+                                          const Number &convection_divergence,
+                                          const Number &diffusion,
+                                          const Tensor<1,dim,Number> &helmholtz_gradient,
+                                          const Tensor<1,dim,Number> &convection,
+                                          const unsigned int component) const
+    {
+      Assert (component == 0 ,
+              ExcIndexRange (component, 0, 1));
+      //            return std::max(0., 0.1 + (2. + 0.) *(- 0.5 * (alpha * (helmholtz_gradient * convection)
+      //                                             - (1-alpha*diffusion)*convection_divergence
+      //                                             - alpha*alpha * diffusion * helmholtz_gradient.norm()
+      //                                             )
+      //                                       )
+      //                            );
+      return std::max(0.0, 0.01 + (2. + 0.) *(- 1. * (alpha * (helmholtz_gradient * convection)
+                                                      - (1-alpha*diffusion)*convection_divergence
+                                                      - alpha*alpha * diffusion * helmholtz_gradient.norm()
+                                                     )
+                                             )
+                     );
+
+      //            return std::max(0., 0.5*(0.4 - 2. *
+      //                                     (0.5 * (alpha * (helmholtz_gradient * convection)
+      //                                             - (1-alpha*diffusion)*convection_divergence
+      //                                             - alpha*alpha * diffusion * helmholtz_gradient.norm()
+      //                                             )
+      //                                      )
+      //                                     +
+      //                                     std::sqrt(4*(- 0.5 * (alpha * (helmholtz_gradient * convection)
+      //                                                           - (1-alpha*diffusion)*convection_divergence
+      //                                                           - alpha*alpha * diffusion * helmholtz_gradient.norm()
+      //                                                           )
+      //                                                  )*(- 0.5 * (alpha * (helmholtz_gradient * convection)
+      //                                                              - (1-alpha*diffusion)*convection_divergence
+      //                                                              - alpha*alpha * diffusion * helmholtz_gradient.norm()
+      //                                                              )
+      //                                                     )+0.16))
+      //                            );
+
+    }
+
+  }
+}
+
+
 namespace aspect
 {
   namespace MeshRefinement
@@ -51,6 +162,12 @@ namespace aspect
        * FEValues object to integrate over the cell.
        */
       FEValues<dim,spacedim>                          fe_values_cell;
+
+      FEValues<dim,spacedim>                          fe_values_neighbor;
+
+      FEValues<dim,spacedim>                          helmholtz_fe_values_cell;
+
+      FEValues<dim,spacedim>                          helmholtz_fe_values_neighbor;
 
       /**
        * FEFaceValues objects to integrate over the faces of the current and
@@ -151,6 +268,12 @@ namespace aspect
 
       std::vector<Tensor<1,spacedim> >                velocity_face_values_cell;
 
+      std::vector<double>                             div_u_cell;
+
+      std::vector<Tensor<1,spacedim> >                velocity_values_neighbor;
+
+      std::vector<double>                             div_u_neighbor;
+
       /**
        * The normal vectors of the finite element function on one face
        *
@@ -166,6 +289,7 @@ namespace aspect
        * size = no of q_points
        */
       std::vector<double>                             diffusion_values_cell;
+      std::vector<double>                             diffusion_values_neighbor;
 
       /**
        * A vector of double to hold diffusion values
@@ -176,6 +300,20 @@ namespace aspect
       std::vector<double>                             diffusion_values_face_cell;
 
       std::vector<double>                             diffusion_values_face_neighbor;
+
+      std::vector<double>                             value_H;
+
+      std::vector<Tensor<1,dim,double> >              gradient_H;
+
+      std::vector<double>                             value_H_neighbor;
+
+      std::vector<Tensor<1,dim,double> >              gradient_H_neighbor;
+
+      std::vector<double>                             face_value_H;
+
+      std::vector<Tensor<1,spacedim> >                face_gradient_H; //is this needed?
+
+      std::vector<double>                             reaction_values;
 
       /**
        * Array for the products of Jacobian determinants and weights of
@@ -195,17 +333,29 @@ namespace aspect
 
       const unsigned int                              n_cell_terms;
       const unsigned int                              n_face_terms;
+
+      LinearAlgebra::Vector                           helmholtz_solution;
+
+      const EquationData::WeightingFunction<dim,double>       *weighting_function;
+
+      const EquationData::ReactionFunction<dim,double>        *reaction_function;
+
       /**
        * Constructor.
        */
       DGParallelData (const FiniteElement<dim>                 &finite_element,
                       const Quadrature<dim>                    &cell_quadrature,
                       const Quadrature<dim-1>                  &face_quadrature,
+                      const FiniteElement<dim>                 &helmholtz_finite_element,
+                      const Quadrature<dim>                    &helmholtz_cell_quadrature,
                       const Mapping<dim>                       &mapping,
                       const bool                                need_quadrature_points,
                       const double                              timestep_in,
                       unsigned int                              n_cell_terms,
-                      unsigned int                              n_face_terms);
+                      unsigned int                              n_face_terms,
+                      LinearAlgebra::Vector                    &helmholtz_solution,
+                      const EquationData::WeightingFunction<dim,double> *weighting_function,
+                      const EquationData::ReactionFunction<dim,double>  *reaction_function);
 
       /**
        * Resize the arrays so that they fit the number of quadrature points
@@ -221,11 +371,16 @@ namespace aspect
     DGParallelData (const FiniteElement<dim>                 &finite_element,
                     const Quadrature<dim>                    &cell_quadrature,
                     const Quadrature<dim-1>                  &face_quadrature,
+                    const FiniteElement<dim>                 &helmholtz_finite_element,
+                    const Quadrature<dim>                    &helmholtz_cell_quadrature,
                     const Mapping<dim>                       &mapping,
                     const bool                                need_quadrature_points,
                     const double                              timestep_in,
                     unsigned int                              n_cell_terms,
-                    unsigned int                              n_face_terms)
+                    unsigned int                              n_face_terms,
+                    LinearAlgebra::Vector                    &helmholtz_solution,
+                    const EquationData::WeightingFunction<dim,double> *weighting_function,
+                    const EquationData::ReactionFunction<dim,double>  *reaction_function)
       :
       cell_quadrature   (cell_quadrature),
       face_quadrature   (face_quadrature),
@@ -239,6 +394,34 @@ namespace aspect
                                (need_quadrature_points  ?
                                 update_quadrature_points :
                                 UpdateFlags()) ),
+      fe_values_neighbor      (mapping,
+                               finite_element,
+                               cell_quadrature,
+                               update_values         |
+                               update_gradients      |
+                               update_JxW_values     |
+                               (need_quadrature_points  ?
+                                update_quadrature_points :
+                                UpdateFlags()) ),
+      helmholtz_fe_values_cell(mapping,
+                               helmholtz_finite_element,
+                               helmholtz_cell_quadrature,
+                               update_values         |
+                               update_gradients      |
+                               update_hessians       |
+                               update_JxW_values     |
+                               (need_quadrature_points  ?
+                                update_quadrature_points :
+                                UpdateFlags()) ),
+      helmholtz_fe_values_neighbor  (mapping,
+                                     helmholtz_finite_element,
+                                     helmholtz_cell_quadrature,
+                                     update_values         |
+                                     update_gradients      |
+                                     update_JxW_values     |
+                                     (need_quadrature_points  ?
+                                      update_quadrature_points :
+                                      UpdateFlags()) ),
       fe_face_values_cell     (mapping,
                                finite_element,
                                face_quadrature,
@@ -276,12 +459,27 @@ namespace aspect
 
       velocity_values                           (cell_quadrature.size()),
       velocity_face_values_cell                 (face_quadrature.size()),
+      div_u_cell                                (cell_quadrature.size()),
+      velocity_values_neighbor                  (cell_quadrature.size()),
+      div_u_neighbor                            (cell_quadrature.size()),
 
       normal_vectors                            (face_quadrature.size()),
 
       diffusion_values_cell                     (cell_quadrature.size()),
+      diffusion_values_neighbor                 (cell_quadrature.size()),
       diffusion_values_face_cell                (face_quadrature.size()),
       diffusion_values_face_neighbor            (face_quadrature.size()),
+
+      value_H                                   (cell_quadrature.size()),
+      gradient_H                                (cell_quadrature.size()),
+
+      value_H_neighbor                          (cell_quadrature.size()),
+      gradient_H_neighbor                       (cell_quadrature.size()),
+
+      face_value_H                              (cell_quadrature.size()),
+      face_gradient_H                           (cell_quadrature.size()),
+
+      reaction_values                           (cell_quadrature.size()),
 
       JxW_cell_values                           (cell_quadrature.size()),
       JxW_face_values                           (face_quadrature.size()),
@@ -289,7 +487,10 @@ namespace aspect
       edgevertexpatch_max_conv_squared  (0.),
       timestep          (timestep_in),
       n_cell_terms      (n_cell_terms),
-      n_face_terms      (n_face_terms)
+      n_face_terms      (n_face_terms),
+      helmholtz_solution(helmholtz_solution),
+      weighting_function(weighting_function),
+      reaction_function (reaction_function)
     {}
 
 
@@ -329,12 +530,37 @@ namespace aspect
       velocity_values.resize(n_cell_q_points);
       velocity_face_values_cell.clear();
       velocity_face_values_cell.resize(n_face_q_points);
+      div_u_cell.clear();
+      div_u_cell.resize(n_cell_q_points);
+
+      velocity_values_neighbor.clear();
+      velocity_values_neighbor.resize(n_cell_q_points);
+      div_u_neighbor.clear();
+      div_u_neighbor.resize(n_cell_q_points);
 
       normal_vectors.resize(n_face_q_points);
 
       diffusion_values_cell.resize(n_cell_q_points);
       diffusion_values_face_cell.resize(n_face_q_points);
       diffusion_values_face_neighbor.resize(n_face_q_points);
+
+      value_H.clear();
+      value_H.resize(n_cell_q_points);
+      gradient_H.clear();
+      gradient_H.resize(n_cell_q_points);
+
+      value_H_neighbor.clear();
+      value_H_neighbor.resize(n_cell_q_points);
+      gradient_H_neighbor.clear();
+      gradient_H_neighbor.resize(n_cell_q_points);
+
+      face_value_H.clear();
+      face_value_H.resize(n_face_q_points);
+      face_gradient_H.clear();
+      face_gradient_H.resize(n_face_q_points);
+
+      reaction_values.clear();
+      reaction_values.resize(n_cell_q_points);
 
       JxW_cell_values.resize(n_cell_q_points);
       JxW_face_values.resize(n_face_q_points);
@@ -354,11 +580,17 @@ namespace aspect
         std::vector<float>
         integrate_over_face(DGParallelData<DoFHandler<dim> >              &parallel_data,
                             const typename DoFHandler<dim>::face_iterator &face,
-                            FEFaceValues<dim>                             &fe_face_values_cell) const;
+                            const typename DoFHandler<dim>::active_cell_iterator       &cell,
+                            const typename DoFHandler<dim>::active_cell_iterator       &neighbor,
+                            const typename DoFHandler<dim>::active_cell_iterator       &helmholtz_cell,
+                            const typename DoFHandler<dim>::active_cell_iterator       &helmholtz_neighbor,
+                            FEFaceValues<dim>                             &fe_face_values_cell
+                           ) const;
         void
         integrate_over_regular_face (std::map<typename DoFHandler<dim>::face_iterator,std::vector<float> > &local_face_integrals,
                                      const typename DoFHandler<dim>::active_cell_iterator                  &cell,
                                      const unsigned int                                                     face_no,
+                                     const typename DoFHandler<dim>::active_cell_iterator                  &helmholtz_cell,
                                      DGParallelData<DoFHandler<dim> >                                      &parallel_data,
                                      FEFaceValues<dim>                                                     &fe_face_values_cell,
                                      FEFaceValues<dim>                                                     &fe_face_values_neighbor) const;
@@ -366,6 +598,7 @@ namespace aspect
         integrate_over_irregular_face (std::map<typename DoFHandler<dim>::face_iterator,std::vector<float> > &local_face_integrals,
                                        const typename DoFHandler<dim>::active_cell_iterator                  &cell,
                                        const unsigned int                                                     face_no,
+                                       const typename DoFHandler<dim>::active_cell_iterator                  &helmholtz_cell,
                                        DGParallelData<DoFHandler<dim> >                                      &parallel_data,
                                        FEFaceValues<dim>                                                     &fe_face_values,
                                        FESubfaceValues<dim>                                                  &fe_subface_values) const;
@@ -376,7 +609,17 @@ namespace aspect
                             DGParallelData<DoFHandler<dim> >                                             &parallel_data,
                             typename DoFHandler<dim>::active_cell_iterator                               &projection_cell,
                             FEValues<dim>                                                                &projection_fe_values,
-                            Quadrature<dim>                                                              &projection_quadrature) const;
+                            Quadrature<dim>                                                              &projection_quadrature,
+                            FEValues<dim>                                                                &helmholtz_fe_values,
+                            typename DoFHandler<dim>::active_cell_iterator                               &helmholtz_cell) const;
+
+        void
+        compute_helmholtz_decomposition(const FE_Q<dim> &helmholtz_fe,
+                                        const DoFHandler<dim> &helmholtz_dof_handler,
+                                        const UpdateFlags &helmholtz_update_flags,
+                                        const QGauss<dim> &helmholtz_quadrature,
+                                        FEValues<dim> &helmholtz_fe_values,
+                                        LinearAlgebra::Vector &helmholtz_solution) const;
       public:
         /**
          * Execute this mesh refinement criterion.
