@@ -29,6 +29,7 @@
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/base/function_lib.h>
 
+//#include <deal.II/numerics/data_out.h>
 
 /* Assumptions made in this estimator:
  Diffusion is constant and non-zero (this is assumed in the weightings, but not necessarily in the calculation of some terms).
@@ -154,6 +155,10 @@ namespace aspect
           Assert (helmholtz_cell == helmholtz_neighbor,
                   ExcInternalError());
 
+          // gradient jump is not computed over any boundary face
+          for (unsigned int point=0; point<n_q_points; ++point)
+            parallel_data.temperature_face_scaled_gradients_jump[point] = 0.;
+            
 #if DEAL_II_VERSION_GTE(8,3,0)
           const types::boundary_id boundary_id = face->boundary_id();
 #else
@@ -164,8 +169,9 @@ namespace aspect
               == this->get_parameters().fixed_temperature_boundary_indicators.end())
             {
               //Neumann
-              // Only zero Neumann conditions are allowed in ASPECT, so compute difference between
-              // normal gradient and zero, i.e. leave as it is.
+              // As we don't have a snesible value for across the face, we set the jump to zero
+              for (unsigned int point=0; point<n_q_points; ++point)
+                parallel_data.temperature_face_values_jump[point] = 0.;
             }
           else
             {
@@ -1095,7 +1101,8 @@ namespace aspect
             material_model_inputs.velocity);
         parallel_data.fe_values_cell[this->introspection().extractors.pressure].get_function_gradients(this->get_solution(),
             material_model_inputs.pressure_gradient);
-
+        parallel_data.fe_values_cell[this->introspection().extractors.velocities].get_function_symmetric_gradients(this->get_solution(),
+            material_model_inputs.strain_rate);
         // the values of the compositional fields are stored as blockvectors for each field
         // we have to extract them in this structure
         std::vector<std::vector<double> > composition_values (this->get_parameters().n_compositional_fields,
@@ -1203,6 +1210,20 @@ namespace aspect
       AssertThrow(this->get_parameters().use_discontinuous_temperature_discretization,
                   ExcMessage("dg error estimator cannot be used unless "
                              "use_discontinuous_temperature_discretization is set to true."));
+
+      // skip calculation if we're not at an adaptive timestep - this means we can
+      // calculate the error indicator for output purposes as zero except on
+      // adaptive timesteps
+      if (!(this->get_timestep_number() % this->get_parameters().adaptive_refinement_interval==0))
+        {
+          unsigned int present_cell=0;
+          for (typename DoFHandler<dim>::active_cell_iterator cell=this->get_dof_handler().begin_active();
+               cell!=this->get_dof_handler().end();
+               ++cell, ++present_cell)
+            if (cell->is_locally_owned())
+              indicators[present_cell] = 0.;
+            return;
+        }
 
       /* Handle Ak:
        *    - Calculate old temperature projection - we in fact do nothing here, because we can't easily compute the projection from the old mesh - all our solution, old_solution etc have already been interpolated onto the new mesh. Instead, we just use old_solution as this shouldn't be too bad.
@@ -1493,6 +1514,69 @@ namespace aspect
 
             indicators[present_cell] = std::sqrt(indicators[present_cell]);
           }
+
+//        DataOut<dim> data_out;
+//        data_out.attach_dof_handler (helmholtz_dof_handler);
+//        data_out.add_data_vector (helmholtz_solution,"helmholtz");
+//        data_out.add_data_vector (indicators,"indicators");
+//        for (unsigned int j=0; j<n_cell_terms+n_face_terms; ++j)
+//            data_out.add_data_vector (errors[j],("indicators"+Utilities::int_to_string(j)).c_str());
+//
+//        data_out.build_patches (1);
+//        
+//        std::string subdomain_number;
+//        subdomain_number = Utilities::int_to_string
+//        (this->get_triangulation().locally_owned_subdomain(), 4);
+//        static int out_index=0;
+//        
+//        const std::string filename = ("/Users/sam/Desktop/shell_simple_2d-dg-w-vis/solution/" +
+//                                      Utilities::int_to_string (out_index, 5) +
+//                                      "." +
+//                                      subdomain_number +
+//                                      ".vtu");
+//        std::ofstream output (filename.c_str());
+//        data_out.write_vtu (output);
+//        static std::vector<std::pair<double,std::string> >     times_and_pvtu_names;
+//        static std::vector<std::vector<std::string> >          output_file_names_by_timestep;
+//        
+//        if (Utilities::MPI::this_mpi_process(this->get_mpi_communicator()) == 0)
+//        {
+//            std::vector<std::string> filenames;
+//            for (unsigned int i=0; i<Utilities::MPI::n_mpi_processes(this->get_mpi_communicator()); ++i)
+//                filenames.push_back ("/Users/sam/Desktop/shell_simple_2d-dg-w-vis/solution/" +
+//                                     Utilities::int_to_string (out_index, 5) +
+//                                     "." +
+//                                     Utilities::int_to_string(i, 4) +
+//                                     ".vtu");
+//            const std::string
+//            pvtu_master_filename = ("/Users/sam/Desktop/shell_simple_2d-dg-w-vis/solution/" +
+//                                    Utilities::int_to_string (out_index, 5) +
+//                                    ".pvtu");
+//            std::ofstream pvtu_master (pvtu_master_filename.c_str());
+//            data_out.write_pvtu_record (pvtu_master, filenames);
+//            
+//            //             now also generate a .pvd file that matches simulation
+//            //             time and corresponding .pvtu record
+//            times_and_pvtu_names.push_back(std::make_pair
+//                                           (this->get_time(), pvtu_master_filename));
+//            const std::string
+//            pvd_master_filename = ("/Users/sam/Desktop/shell_simple_2d-dg-w-vis/solution/solution.pvd");
+//            std::ofstream pvd_master (pvd_master_filename.c_str());
+//            data_out.write_pvd_record (pvd_master, times_and_pvtu_names);
+//            
+//            const std::string
+//            visit_master_filename = ("/Users/sam/Desktop/shell_simple_2d-dg-w-vis/" + std::string("visit-solution") +
+//                                     Utilities::int_to_string (out_index, 5) +
+//                                     ".visit");
+//            std::ofstream visit_master (visit_master_filename.c_str());
+//            data_out.write_visit_record (visit_master, filenames);
+//            
+//            
+//            output_file_names_by_timestep.push_back (filenames);
+//            std::ofstream global_visit_master ("/Users/sam/Desktop/shell_simple_2d-dg-w-vis/solution.visit");
+//            data_out.write_visit_record (global_visit_master, output_file_names_by_timestep);
+//            ++out_index;
+//        }
 
     }
 
