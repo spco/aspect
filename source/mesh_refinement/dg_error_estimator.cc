@@ -1172,7 +1172,6 @@ namespace aspect
             {
               velocity_grad_temperature += parallel_data.velocity_values[q][component]*parallel_data.temperature_gradients[q][component];
             }
-//TOOD: add proj(delta*T)-delta*T
           Assert (numbers::is_finite(Utilities::fixed_power<2>(local_projection[q]
                                                                - ((parallel_data.temperature_values[q] - parallel_data.old_temperature_values[q])/timestep)
                                                                + parallel_data.diffusion_values_cell[q] * parallel_data.temperature_laplacians[q]
