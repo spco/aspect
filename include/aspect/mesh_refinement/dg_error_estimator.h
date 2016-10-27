@@ -109,7 +109,7 @@ namespace dealii
       //                            );
       return std::max(0.0, 0.01 + (2. + 0.) *(- 1. * (alpha * (helmholtz_gradient * convection)
                                                       - (1-alpha*diffusion)*convection_divergence
-                                                      - alpha*alpha * diffusion * helmholtz_gradient.norm()
+                                                      - alpha*alpha * diffusion * helmholtz_gradient * helmholtz_gradient
                                                      )
                                              )
                      );
