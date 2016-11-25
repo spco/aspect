@@ -27,7 +27,7 @@
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_values.h>
 
-#include "aspect/mesh_refinement/coefficient_function.h"
+#include "coefficient_function.h"
 
 namespace dealii
 {

@@ -19,7 +19,7 @@
  */
 
 
-#include <aspect/mesh_refinement/dg_error_estimator.h>
+#include "./dg_error_estimator.h"
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/dofs/dof_tools.h>

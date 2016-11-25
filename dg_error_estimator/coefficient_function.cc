@@ -6,7 +6,7 @@
 //  Copyright (c) 2015-2016 Samuel Cox. All rights reserved.
 //
 
-#include "aspect/mesh_refinement/coefficient_function.h"
+#include "coefficient_function.h"
 
 // ---------------------------------------------------------------------
 //
